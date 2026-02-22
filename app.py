@@ -10,13 +10,13 @@ current_age = st.sidebar.number_input("Current Age", value=43, min_value=18, max
 salary = st.sidebar.number_input("Current Annual Salary (£)", value=67000, step=1000)
 initial_pension = st.sidebar.number_input("Current Pension Pot (£)", value=175000, step=5000)
 
-st.sidebar.header("2. Financial Levers")
+st.sidebar.header("2. Mortgage & Finance")
+principal = st.sidebar.number_input("Mortgage Principal (£)", value=260000, step=5000)
 m_interest = st.sidebar.slider("Mortgage Interest Rate (%)", 1.0, 10.0, 5.0) / 100
 p_growth = st.sidebar.slider("Pension Growth (%)", 1.0, 10.0, 5.0) / 100
 strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 25)
 
-# Fixed Baseline Parameters
-principal = 260000
+# Fixed Constants
 access_age = 57
 final_age = 70
 sal_growth = 0.01
@@ -64,42 +64,27 @@ def simulate_strategy(term, sacrifice):
         monthly_take_home = get_monthly_net_income(current_sal, sacrifice)
         actual_pmt = current_pmt if m_balance > 0 else 0
         
-        # Yearly Interest and Amortization
         for _ in range(12):
             if m_balance > 0:
                 interest = m_balance * (m_interest / 12)
                 total_interest += interest
                 m_balance -= (actual_pmt - interest)
         
-        # Pension Growth
         p_pot = (p_pot + (current_sal * (sacrifice + emp_match))) * (1 + p_growth)
-        
-        # Age 57: Extract 25% Vault
         if age == access_age:
             vault = p_pot * 0.25
             p_pot = p_pot * 0.75
             
-        # Overpayment & Recalculation (Age 57-69)
         if access_age <= age < final_age and vault > 0 and m_balance > 0:
             overpay = min(m_balance * 0.10, vault)
             m_balance -= overpay
             vault -= overpay
-            
-            # Recalculate remaining term for next year's PMT
             rem_months = (term * 12) - ((yr_idx + 1) * 12)
             if rem_months > 0 and m_balance > 0:
                 current_pmt = abs(npf.pmt(m_interest/12, rem_months, m_balance))
-            else:
-                current_pmt = 0
+            else: current_pmt = 0
         
-        history.append({
-            "Age": age, 
-            "Balance": max(0, m_balance), 
-            "Monthly_Payment": actual_pmt, 
-            "Net_Monthly_Income": monthly_take_home - actual_pmt, 
-            "Pot": p_pot, 
-            "Vault": vault
-        })
+        history.append({"Age": age, "Balance": max(0, m_balance), "Monthly_Payment": actual_pmt, "Net_Monthly_Income": monthly_take_home - actual_pmt, "Pot": p_pot, "Vault": vault})
         
     final_wealth = p_pot + (vault - (m_balance * 1.02))
     return history, total_interest, final_wealth
@@ -110,7 +95,10 @@ h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrific
 
 # --- Dashboard View ---
 st.title("🛡️ Net-Zero Lifestyle Wealth Strategy")
-st.write(f"Reallocating **£{monthly_mortgage_saving:,.2f}/mo** mortgage saving into a **£{extra_gross_pension_monthly:,.2f}/mo** pension contribution.")
+
+# Top Highlight Metric
+st.success(f"### Total Strategy Gain at Age 70: £{w_strat - w_base:,.0f}")
+st.write(f"By extending to a {strategy_term}-year term and reallocating the **£{monthly_mortgage_saving:,.2f}/mo** saving into your pension (**£{extra_gross_pension_monthly:,.2f}/mo** gross contribution), you achieve this gain with **zero impact** on your current take-home pay.")
 
 # 1. Comparison Table
 st.subheader("Comparison Table: Reallocation Strategy")
@@ -118,12 +106,12 @@ table_data = {
     "Metric": [
         "Mortgage Length (Years)", 
         "Monthly Mortgage Reduction",
-        "Extra Monthly Pension (Gross)",
+        "Extra Monthly Pension (Gross Contribution)",
         "Total Pension Contribution (%)",
         "Total Interest Paid (to Age 70)", 
         "Net Wealth at 70 (After Payoff)"
     ],
-    "Baseline Plan": [
+    "Baseline Plan (17yr)": [
         "17 Years", "-", "-", f"{baseline_sacrifice*100:.1f}%", f"£{int_base:,.0f}", f"£{w_base:,.0f}"
     ],
     "Optimized Strategy": [
@@ -148,5 +136,3 @@ with c2:
 with c3:
     st.write("**Net Monthly Income (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Net_Monthly_Income'] for x in h_base], "Strategy": [x['Net_Monthly_Income'] for x in h_strat]}).set_index("Age"))
-
-st.success(f"**Total Strategy Gain at Age 70:** £{w_strat - w_base:,.0f} extra wealth.")
