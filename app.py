@@ -5,7 +5,7 @@ import numpy_financial as npf
 st.set_page_config(page_title="Net-Zero Strategy Dashboard", layout="wide")
 
 # --- Sidebar Inputs ---
-st.sidebar.header("1. Fixed Parameters")
+st.sidebar.header("1. Core Inputs")
 principal = 260000
 salary = 67000
 initial_pension = 175000
@@ -17,22 +17,19 @@ emp_match = 0.10
 baseline_term = 17
 baseline_sacrifice = 0.07
 
-st.sidebar.header("2. Variables")
+st.sidebar.header("2. Variable Levers")
 m_interest = st.sidebar.slider("Mortgage Interest Rate (%)", 1.0, 10.0, 5.0) / 100
 p_growth = st.sidebar.slider("Pension Growth (%)", 1.0, 10.0, 5.0) / 100
-strategy_term = st.sidebar.slider("Strategy Mortgage Length (Years)", 18, 40, 25)
+strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 25)
 
 # --- Logic: The "Back-Calculation" ---
-# 1. Calculate the monthly saving in mortgage payments
 pmt_17 = abs(npf.pmt(m_interest/12, baseline_term*12, principal))
 pmt_strategy = abs(npf.pmt(m_interest/12, strategy_term*12, principal))
-monthly_saving = pmt_17 - pmt_strategy
+monthly_mortgage_saving = pmt_17 - pmt_strategy
 
-# 2. Convert that net saving into a Gross Salary Sacrifice %
-# To get £1 net, you need £1.72 gross (at 42% tax/NI saving) -> 1 / 0.58
-gross_equivalent_monthly = monthly_saving / 0.58
-annual_extra_sacrifice = gross_equivalent_monthly * 12
-extra_sacrifice_pct = annual_extra_sacrifice / salary
+# Convert net saving into Gross Salary Sacrifice (using 40% tax + 2% NI = 0.58 multiplier)
+extra_gross_pension_monthly = monthly_mortgage_saving / 0.58
+extra_sacrifice_pct = (extra_gross_pension_monthly * 12) / salary
 strategy_sacrifice = baseline_sacrifice + extra_sacrifice_pct
 
 # --- Helper Functions ---
@@ -82,52 +79,56 @@ def simulate_strategy(term, sacrifice):
             rem_months = (term * 12) - ((year_idx + 1) * 12)
             if rem_months > 0 and m_balance > 0:
                 current_pmt = abs(npf.pmt(m_interest/12, rem_months, m_balance))
-            else:
-                current_pmt = 0
+            else: current_pmt = 0
         
         history.append({"Age": age, "Balance": max(0, m_balance), "Monthly_Payment": actual_pmt, "Net_Monthly_Income": monthly_take_home - actual_pmt, "Pot": p_pot, "Vault": vault})
         
     final_wealth = p_pot + (vault - (m_balance * 1.02))
     return history, total_interest, final_wealth
 
-# --- Run ---
-h1, int1, w1 = simulate_strategy(baseline_term, baseline_sacrifice)
+# --- Execution ---
+h_base, int_base, w_base = simulate_strategy(baseline_term, baseline_sacrifice)
 h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrifice)
 
-# --- UI ---
+# --- Dashboard View ---
 st.title("🛡️ Net-Zero Lifestyle Wealth Strategy")
-st.markdown(f"**The Goal:** Maintain your current net income, but reallocate the **£{monthly_saving:,.2f}/mo** saved from a longer mortgage into your pension.")
-
-col_a, col_b = st.columns(2)
-col_a.metric("New Calculated Sacrifice", f"{strategy_sacrifice*100:.2f}%", f"+{(extra_sacrifice_pct*100):.2f}% from Baseline")
-col_b.metric("Projected Wealth Gain at 70", f"£{w_strat - w1:,.0f}")
+st.write(f"This strategy reallocates your **£{monthly_mortgage_saving:,.2f}** monthly mortgage saving into a **£{extra_gross_pension_monthly:,.2f}** monthly pension contribution.")
 
 # 1. Comparison Table
-st.subheader("Strategy Comparison (Age 43 to 70)")
+st.subheader("Comparison Table: Reallocation Strategy")
 table_data = {
-    "Metric": ["Mortgage Length", "Total Pension Contribution", "Net Monthly Income (Age 43)", "Total Interest Paid to Bank", "Net Wealth at 70 (After Payoff)"],
-    "Baseline Plan": ["17 Years", f"{baseline_sacrifice*100:.1f}%", f"£{h1[0]['Net_Monthly_Income']:,.2f}", f"£{int1:,.0f}", f"£{w1:,.0f}"],
-    "Optimized Strategy": [f"{strategy_term} Years", f"{strategy_sacrifice*100:.1f}%", f"£{h_strat[0]['Net_Monthly_Income']:,.2f}", f"£{int_strat:,.0f}", f"£{w_strat:,.0f}"]
+    "Metric": [
+        "Mortgage Length (Years)", 
+        "Monthly Mortgage Reduction (vs Baseline)",
+        "Extra Monthly Pension Contribution (Gross)",
+        "Total Pension Contribution (%)",
+        "Total Interest Paid (to Age 70)", 
+        "Net Wealth at 70 (After Payoff)"
+    ],
+    "Baseline Plan": [
+        "17 Years", "-", "-", f"{baseline_sacrifice*100:.1f}%", f"£{int_base:,.0f}", f"£{w_base:,.0f}"
+    ],
+    "Optimized Strategy": [
+        f"{strategy_term} Years", 
+        f"£{monthly_mortgage_saving:,.2f}", 
+        f"£{extra_gross_pension_monthly:,.2f}", 
+        f"{strategy_sacrifice*100:.1f}%", 
+        f"£{int_strat:,.0f}", 
+        f"£{w_strat:,.0f}"
+    ]
 }
 st.table(pd.DataFrame(table_data))
 
 # 2. Charts
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.write("**Mortgage Balance**")
-    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h1], "Baseline": [x['Balance'] for x in h1], "Strategy": [x['Balance'] for x in h_strat]}).set_index("Age"))
+    st.write("**Mortgage Balance (£)**")
+    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Balance'] for x in h_base], "Strategy": [x['Balance'] for x in h_strat]}).set_index("Age"))
 with c2:
-    st.write("**Monthly Mortgage Cost**")
-    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h1], "Baseline": [x['Monthly_Payment'] for x in h1], "Strategy": [x['Monthly_Payment'] for x in h_strat]}).set_index("Age"))
+    st.write("**Monthly Mortgage Cost (£)**")
+    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Monthly_Payment'] for x in h_base], "Strategy": [x['Monthly_Payment'] for x in h_strat]}).set_index("Age"))
 with c3:
-    st.write("**Net Monthly Income**")
-    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h1], "Baseline": [x['Net_Monthly_Income'] for x in h1], "Strategy": [x['Net_Monthly_Income'] for x in h_strat]}).set_index("Age"))
+    st.write("**Net Monthly Income (£)**")
+    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Net_Monthly_Income'] for x in h_base], "Strategy": [x['Net_Monthly_Income'] for x in h_strat]}).set_index("Age"))
 
-with st.expander("ℹ️ How the back-calculation works"):
-    st.write(f"""
-    1. We calculate the monthly payment for a 17-year mortgage: **£{pmt_17:,.2f}**.
-    2. We calculate the payment for a {strategy_term}-year mortgage: **£{pmt_strategy:,.2f}**.
-    3. The difference is **£{monthly_saving:,.2f}** in your pocket.
-    4. To keep your take-home pay the same, we increase your pension sacrifice by **£{gross_equivalent_monthly:,.2f}** gross. 
-    5. Because of the 40% tax relief and 2% NI saving, that **£{gross_equivalent_monthly:,.2f}** only reduces your take-home pay by exactly **£{monthly_saving:,.2f}**, cancelling it out.
-    """)
+st.success(f"**Total Strategy Gain at Age 70:** £{w_strat - w_base:,.0f} extra wealth for £0 reduction in current monthly take-home pay.")
