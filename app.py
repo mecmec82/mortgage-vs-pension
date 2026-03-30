@@ -7,21 +7,21 @@ st.set_page_config(page_title="Net-Zero Strategy Dashboard", layout="wide")
 # --- Sidebar Inputs ---
 st.sidebar.header("1. Personal Details")
 current_age = st.sidebar.number_input("Current Age", value=43, min_value=18, max_value=70)
-salary = st.sidebar.number_input("Current Annual Salary (£)", value=67000, step=1000)
-initial_pension = st.sidebar.number_input("Current Pension Pot (£)", value=175000, step=5000)
+salary = st.sidebar.number_input("Current Annual Salary (£)", value=67500, step=1000)
+initial_pension = st.sidebar.number_input("Current Pension Pot (£)", value=170000, step=5000)
 
 st.sidebar.header("2. Mortgage & Finance")
-principal = st.sidebar.number_input("Mortgage Principal (£)", value=260000, step=5000)
+principal = st.sidebar.number_input("Mortgage Principal (£)", value=270000, step=5000)
 m_interest = st.sidebar.slider("Mortgage Interest Rate (%)", 1.0, 10.0, 5.0) / 100
 p_growth = st.sidebar.slider("Pension Growth (%)", 1.0, 10.0, 5.0) / 100
 strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 25)
 
 # Fixed Constants
 access_age = 57
-final_age = 70
+final_age = 67
 sal_growth = 0.01
 emp_match = 0.10
-baseline_term = 17
+baseline_term = 18
 baseline_sacrifice = 0.07
 
 # --- Logic: The "Back-Calculation" ---
