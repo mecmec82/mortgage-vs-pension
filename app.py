@@ -12,8 +12,10 @@ initial_pension = st.sidebar.number_input("Current Pension Pot (£)", value=1700
 
 st.sidebar.header("2. Mortgage & Finance")
 principal = st.sidebar.number_input("Mortgage Principal (£)", value=270000, step=5000)
+current_property_value = st.sidebar.number_input("Current Property Value (£)", value=450000, step=5000)
 m_interest = st.sidebar.slider("Mortgage Interest Rate (%)", 1.0, 10.0, 5.0) / 100
 p_growth = st.sidebar.slider("Pension Growth (%)", 1.0, 10.0, 5.0) / 100
+h_growth = st.sidebar.slider("House Price Growth (%)", 0.0, 5.0, 2.0) / 100
 strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 23)
 
 # Fixed Constants
@@ -61,6 +63,7 @@ def simulate_strategy(term, sacrifice):
     for yr_idx in range(sim_years + 1):
         age = current_age + yr_idx
         current_sal = salary * ((1 + sal_growth)**yr_idx)
+        prop_val = current_property_value * ((1 + h_growth)**yr_idx)
         monthly_take_home = get_monthly_net_income(current_sal, sacrifice)
         actual_pmt = current_pmt if m_balance > 0 else 0
         
@@ -71,6 +74,7 @@ def simulate_strategy(term, sacrifice):
                 m_balance -= (actual_pmt - interest)
         
         p_pot = (p_pot + (current_sal * (sacrifice + emp_match))) * (1 + p_growth)
+        
         if age == access_age:
             vault = p_pot * 0.25
             p_pot = p_pot * 0.75
@@ -84,7 +88,17 @@ def simulate_strategy(term, sacrifice):
                 current_pmt = abs(npf.pmt(m_interest/12, rem_months, m_balance))
             else: current_pmt = 0
         
-        history.append({"Age": age, "Balance": max(0, m_balance), "Monthly_Payment": actual_pmt, "Net_Monthly_Income": monthly_take_home - actual_pmt, "Pot": p_pot, "Vault": vault})
+        # Calculation for Net Worth Chart
+        net_worth = prop_val - max(0, m_balance) + p_pot + vault
+
+        history.append({
+            "Age": age, 
+            "Balance": max(0, m_balance), 
+            "Monthly_Payment": actual_pmt, 
+            "Net_Monthly_Income": monthly_take_home - actual_pmt, 
+            "Pot": p_pot + vault, # Total Pension Value
+            "Net_Worth": net_worth
+        })
         
     final_wealth = p_pot + (vault - (m_balance * 1.02))
     return history, total_interest, final_wealth
@@ -96,43 +110,39 @@ h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrific
 # --- Dashboard View ---
 st.title("🛡️ Net-Zero Lifestyle Wealth Strategy")
 
-# Top Highlight Metric
 st.success(f"### Total Strategy Gain at Age 70: £{w_strat - w_base:,.0f}")
-st.write(f"By extending to a {strategy_term}-year term and reallocating the **£{monthly_mortgage_saving:,.2f}/mo** saving into your pension (**£{extra_gross_pension_monthly:,.2f}/mo** gross contribution), you achieve this gain with **zero impact** on your current take-home pay.")
+st.write(f"By extending to a {strategy_term}-year term and reallocating the **£{monthly_mortgage_saving:,.2f}/mo** saving into your pension, you achieve this gain with **zero impact** on your current take-home pay.")
 
 # 1. Comparison Table
 st.subheader("Comparison Table: Reallocation Strategy")
 table_data = {
-    "Metric": [
-        "Mortgage Length (Years)", 
-        "Monthly Mortgage Reduction",
-        "Extra Monthly Pension (Gross Contribution)",
-        "Total Pension Contribution (%)",
-        "Total Interest Paid (to Age 70)", 
-        "Net Wealth at 70 (After Payoff)"
-    ],
-    "Baseline Plan (17yr)": [
-        "17 Years", "-", "-", f"{baseline_sacrifice*100:.1f}%", f"£{int_base:,.0f}", f"£{w_base:,.0f}"
-    ],
-    "Optimized Strategy": [
-        f"{strategy_term} Years", 
-        f"£{monthly_mortgage_saving:,.2f}", 
-        f"£{extra_gross_pension_monthly:,.2f}", 
-        f"{strategy_sacrifice*100:.1f}%", 
-        f"£{int_strat:,.0f}", 
-        f"£{w_strat:,.0f}"
-    ]
+    "Metric": ["Mortgage Length", "Monthly Mortgage Saving", "Extra Pension (Gross)", "Total Interest Paid", "Net Wealth at 70"],
+    "Baseline Plan (18yr)": ["18 Years", "-", "-", f"£{int_base:,.0f}", f"£{w_base:,.0f}"],
+    "Optimized Strategy": [f"{strategy_term} Years", f"£{monthly_mortgage_saving:,.2f}", f"£{extra_gross_pension_monthly:,.2f}", f"£{int_strat:,.0f}", f"£{w_strat:,.0f}"]
 }
 st.table(pd.DataFrame(table_data))
 
 # 2. Charts
-c1, c2, c3 = st.columns(3)
-with c1:
+st.subheader("Projected Growth & Cashflow")
+row1_col1, row1_col2, row1_col3 = st.columns(3)
+row2_col1, row2_col2 = st.columns(2)
+
+with row1_col1:
     st.write("**Mortgage Balance (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Balance'] for x in h_base], "Strategy": [x['Balance'] for x in h_strat]}).set_index("Age"))
-with c2:
+
+with row1_col2:
     st.write("**Monthly Mortgage Cost (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Monthly_Payment'] for x in h_base], "Strategy": [x['Monthly_Payment'] for x in h_strat]}).set_index("Age"))
-with c3:
+
+with row1_col3:
     st.write("**Net Monthly Income (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Net_Monthly_Income'] for x in h_base], "Strategy": [x['Net_Monthly_Income'] for x in h_strat]}).set_index("Age"))
+
+with row2_col1:
+    st.write("**Total Pension Pot (£)**")
+    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Pot'] for x in h_base], "Strategy": [x['Pot'] for x in h_strat]}).set_index("Age"))
+
+with row2_col2:
+    st.write("**Total Net Worth (£)** (House + Pension - Debt)")
+    st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Net_Worth'] for x in h_base], "Strategy": [x['Net_Worth'] for x in h_strat]}).set_index("Age"))
