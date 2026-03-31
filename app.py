@@ -19,7 +19,7 @@ strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 23)
 
 # Fixed Constants
 access_age = 57
-final_age = 70 # Extended to 70 to match your "Final Wealth" calculation
+final_age = 70 
 sal_growth = 0.01
 emp_match = 0.10
 baseline_term = 18
@@ -49,7 +49,7 @@ def get_monthly_net_income(gross_annual, sacrifice_pct):
         if taxable > br_limit: ni += (taxable - br_limit) * 0.02
     return (taxable - tax - ni) / 12
 
-def simulate_strategy(term, sacrifice):
+def simulate_strategy(term, sacrifice, is_strategy=False):
     m_balance = principal
     p_pot = initial_pension
     vault = 0
@@ -61,7 +61,7 @@ def simulate_strategy(term, sacrifice):
     for yr_idx in range(sim_years + 1):
         age = current_age + yr_idx
         current_sal = salary * ((1 + sal_growth)**yr_idx)
-        house_val = current_house_val * (1.02**yr_idx) # Assuming 2% house growth
+        house_val = current_house_val * (1.02**yr_idx)
         monthly_take_home = get_monthly_net_income(current_sal, sacrifice)
         actual_pmt = current_pmt if m_balance > 0 else 0
         
@@ -73,13 +73,14 @@ def simulate_strategy(term, sacrifice):
         
         p_pot = (p_pot + (current_sal * (sacrifice + emp_match))) * (1 + p_growth)
         
-        if age == access_age:
+        # Only Strategy Plan withdraws the lump sum
+        if is_strategy and age == access_age:
             lump_sum = p_pot * 0.25
-            p_pot -= lump_sum # This creates the drop in the chart
+            p_pot -= lump_sum
             vault += lump_sum
             
-        if access_age <= age < final_age and vault > 0 and m_balance > 0:
-            overpay = min(principal * 0.10, vault, m_balance) # Cap at 10% of original principal
+        if is_strategy and access_age <= age < final_age and vault > 0 and m_balance > 0:
+            overpay = min(principal * 0.10, vault, m_balance)
             m_balance -= overpay
             vault -= overpay
             rem_months = (term * 12) - ((yr_idx + 1) * 12)
@@ -87,6 +88,7 @@ def simulate_strategy(term, sacrifice):
                 current_pmt = abs(npf.pmt(m_interest/12, rem_months, m_balance))
             else: current_pmt = 0
         
+        # Net Worth = Property Equity + Invested Pension + Cash in Vault
         net_worth = house_val - max(0, m_balance) + p_pot + vault
         history.append({
             "Age": age, 
@@ -101,8 +103,8 @@ def simulate_strategy(term, sacrifice):
     return history, total_interest, final_wealth
 
 # --- Execution ---
-h_base, int_base, w_base = simulate_strategy(baseline_term, baseline_sacrifice)
-h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrifice)
+h_base, int_base, w_base = simulate_strategy(baseline_term, baseline_sacrifice, is_strategy=False)
+h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrifice, is_strategy=True)
 
 # --- Dashboard View ---
 st.title("🛡️ Net-Zero Lifestyle Wealth Strategy")
@@ -152,8 +154,6 @@ c4, c5 = st.columns(2)
 with c4:
     st.write("**Pension Pot (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Pot'] for x in h_base], "Strategy": [x['Pot'] for x in h_strat]}).set_index("Age"))
-    st.caption("Note the drop at age 57 in Strategy as 25% is used for mortgage overpayment.")
 with c5:
     st.write("**Total Net Worth (£)**")
     st.line_chart(pd.DataFrame({"Age": [x['Age'] for x in h_base], "Baseline": [x['Net_Worth'] for x in h_base], "Strategy": [x['Net_Worth'] for x in h_strat]}).set_index("Age"))
-    st.caption("Net Worth = Property Value - Mortgage + Pension Pot + Cash.")
