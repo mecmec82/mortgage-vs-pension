@@ -12,14 +12,15 @@ initial_pension = st.sidebar.number_input("Current Pension Pot (£)", value=1700
 
 st.sidebar.header("2. Mortgage & Finance")
 principal = st.sidebar.number_input("Mortgage Principal (£)", value=270000, step=5000)
-current_house_val = st.sidebar.number_input("Current House Value (£)", value=450000, step=10000)
+current_house_val = st.sidebar.number_input("Current House Value (£)", value=520000, step=10000)
 m_interest = st.sidebar.slider("Mortgage Interest Rate (%)", 1.0, 10.0, 5.0) / 100
 p_growth = st.sidebar.slider("Pension Growth (%)", 1.0, 10.0, 5.0) / 100
 strategy_term = st.sidebar.slider("New Mortgage Length (Years)", 18, 40, 23)
+access_age = st.sidebar.slider("Pension access age", 57, 70, 57)
 
 # Fixed Constants
-access_age = 60
-final_age = 70 
+#access_age = 60
+final_age = 67 
 sal_growth = 0.01
 emp_match = 0.10
 baseline_term = 18
