@@ -110,7 +110,7 @@ h_strat, int_strat, w_strat = simulate_strategy(strategy_term, strategy_sacrific
 # --- Dashboard View ---
 st.title("🛡️ Net-Zero Lifestyle Wealth Strategy")
 
-st.success(f"### Total Strategy Gain at Age 70: £{w_strat - w_base:,.0f}")
+st.success(f"### Total Strategy Gain at Age {final_age}: £{w_strat - w_base:,.0f}")
 st.write(f"By extending to a {strategy_term}-year term and reallocating the **£{monthly_mortgage_saving:,.2f}/mo** saving into your pension (**£{extra_gross_pension_monthly:,.2f}/mo** gross contribution), you achieve this gain with **zero impact** on your current take-home pay.")
 
 # 1. Comparison Table
